@@ -1,0 +1,16 @@
+[package]
+name = "fluid"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+ndarray = "0.15"
+ndarray-linalg = "0.14"
+sprs = { git = "https://github.com/vbarrielle/sprs.git" }
+sprs-ldl = { git = "https://github.com/vbarrielle/sprs.git" }
+anyhow = "1.0"
+serde = "1.0"
+serde_derive = "1.0"
+serde_json = "1.0"
+pbr = "1.0"
+gif = "0.11"
