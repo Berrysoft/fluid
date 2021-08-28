@@ -2,7 +2,6 @@
 
 use anyhow::Result;
 use ndarray::{iter::IterMut, *};
-use ndarray_linalg::*;
 use pbr::ProgressBar;
 use serde_derive::Deserialize;
 use sprs::*;
@@ -11,10 +10,6 @@ use std::{
     fs::{File, OpenOptions},
     intrinsics::floorf64,
 };
-
-#[cfg(windows)]
-#[link(name = "lapack")]
-extern "C" {}
 
 struct Fluid {
     height: usize,
@@ -88,7 +83,9 @@ impl Fluid {
                 let x = x as usize;
                 let y = y as usize;
 
-                if array![dx as f64, dy as f64].norm() <= r as f64 {
+                let dr = ((dx * dx + dy * dy) as f64).sqrt();
+
+                if dr <= r as f64 {
                     let mut v = self.velosity.slice_mut(s![x, y, ..]);
                     v += &ArrayView::from(&accel);
 
@@ -364,5 +361,13 @@ fn main() -> Result<()> {
         encoder.write_frame(&frame)?;
     }
     pb.finish_println("Done!");
+
+    let f = hdf5::File::create("output.hdf5")?;
+    f.new_dataset_builder()
+        .with_data(sim.velosity.view())
+        .create("velocity")?;
+    f.new_dataset_builder()
+        .with_data(sim.dyes.view())
+        .create("dyes")?;
     Ok(())
 }
