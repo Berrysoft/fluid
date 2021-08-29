@@ -145,10 +145,10 @@ impl Fluid {
         let mut result = Array3::zeros((self.height, self.width, 2));
         result
             .slice_mut(s![1..-1, .., 0])
-            .assign(&((&f.slice(s![2.., ..])) - &f.slice(s![..-2, ..]) / 2.));
+            .assign(&((&f.slice(s![2.., ..]) - &f.slice(s![..-2, ..])) / 2.));
         result
             .slice_mut(s![.., 1..-1, 1])
-            .assign(&((&f.slice(s![.., 2..])) - &f.slice(s![.., ..-2]) / 2.));
+            .assign(&((&f.slice(s![.., 2..]) - &f.slice(s![.., ..-2])) / 2.));
         result
     }
 
@@ -341,13 +341,14 @@ fn main() -> Result<()> {
 
         sim.step();
 
-        let frame = gif::Frame::from_rgb(
+        let frame = gif::Frame::from_rgb_speed(
             input.width as u16,
             input.height as u16,
             &sim.dyes
                 .iter()
                 .map(|s| (s * 255.) as u8)
                 .collect::<Vec<_>>(),
+            10,
         );
         encoder.write_frame(&frame)?;
     }
