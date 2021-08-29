@@ -2,8 +2,8 @@
 
 use anyhow::Result;
 use image::codecs::gif::*;
-use image::{Frame, RgbaImage};
-use indicatif::ProgressBar;
+use image::{Delay, Frame, RgbaImage};
+use indicatif::{ProgressBar, ProgressStyle};
 use itertools::Itertools;
 use ndarray::{iter::IterMut, *};
 use serde_derive::Deserialize;
@@ -323,7 +323,8 @@ fn main() -> Result<()> {
     let mut sim = Fluid::new(input.height, input.width, input.viscosity);
 
     let mut frames = vec![];
-    let pb = ProgressBar::new(input.time as u64);
+    let pb = ProgressBar::new(input.time as u64)
+        .with_style(ProgressStyle::default_bar().template("{wide_bar} {pos}/{len} {per_sec}"));
 
     for step in 0..input.time {
         pb.inc(1);
@@ -335,7 +336,7 @@ fn main() -> Result<()> {
 
         sim.step();
 
-        let frame = Frame::new(
+        let frame = Frame::from_parts(
             RgbaImage::from_raw(
                 input.width as u32,
                 input.height as u32,
@@ -353,6 +354,9 @@ fn main() -> Result<()> {
                     .collect(),
             )
             .unwrap(),
+            0,
+            0,
+            Delay::from_saturating_duration(std::time::Duration::from_millis(30)),
         );
         frames.push(frame);
     }
