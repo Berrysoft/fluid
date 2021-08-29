@@ -9,6 +9,7 @@ use sprs_ldl::LdlNumeric;
 use std::{
     fs::{File, OpenOptions},
     intrinsics::floorf64,
+    ops::AddAssign,
 };
 
 struct Fluid {
@@ -118,8 +119,8 @@ impl Fluid {
             diffused_velocity.slice_mut(s![.., .., dim]).assign(
                 &self
                     .diffusion_solver
-                    .solve(&Array1::<f64>::from_iter(
-                        advected_velocity.clone().slice_move(s![.., .., dim]),
+                    .solve(&Array1::from_iter(
+                        advected_velocity.slice(s![.., .., dim]).to_owned(),
                     ))
                     .into_shape((self.height, self.width))
                     .unwrap(),
@@ -142,35 +143,25 @@ impl Fluid {
 
     fn grad(&self, f: &Array2<f64>) -> Array3<f64> {
         let mut result = Array3::zeros((self.height, self.width, 2));
-        {
-            let mut slice = result.slice_mut(s![1..-1, .., 0]);
-            slice.assign(&f.slice(s![2.., ..]));
-            slice -= &f.slice(s![..-2, ..]);
-            slice /= 2.;
-        }
-        {
-            let mut slice = result.slice_mut(s![.., 1..-1, 1]);
-            slice.assign(&f.slice(s![.., 2..]));
-            slice -= &f.slice(s![.., ..-2]);
-            slice /= 2.;
-        }
+        result
+            .slice_mut(s![1..-1, .., 0])
+            .assign(&((&f.slice(s![2.., ..])) - &f.slice(s![..-2, ..]) / 2.));
+        result
+            .slice_mut(s![.., 1..-1, 1])
+            .assign(&((&f.slice(s![.., 2..])) - &f.slice(s![.., ..-2]) / 2.));
         result
     }
 
     fn diverg(&self, f: &Array3<f64>) -> Array2<f64> {
         let mut result = Array2::zeros((self.height, self.width));
-        {
-            let mut slice = result.slice_mut(s![1..-1, ..]);
-            let f_x = f.slice(s![.., .., 0]);
-            let nslice = (&f_x.slice(s![2.., ..]) - &f_x.slice(s![..-2, ..])) / 2.;
-            slice.assign(&nslice);
-        }
-        {
-            let mut slice = result.slice_mut(s![.., 1..-1]);
-            let f_y = f.slice(s![.., .., 1]);
-            let nslice = (&f_y.slice(s![.., 2..]) - &f_y.slice(s![.., ..-2])) / 2.;
-            slice += &nslice;
-        }
+        let f_x = f.slice(s![.., .., 0]);
+        result
+            .slice_mut(s![1..-1, ..])
+            .assign(&((&f_x.slice(s![2.., ..]) - &f_x.slice(s![..-2, ..])) / 2.));
+        let f_y = f.slice(s![.., .., 1]);
+        result
+            .slice_mut(s![.., 1..-1])
+            .add_assign(&((&f_y.slice(s![.., 2..]) - &f_y.slice(s![.., ..-2])) / 2.));
         result
     }
 
@@ -207,10 +198,10 @@ impl Fluid {
 
         let dx = dx.slice_move(s![.., .., NewAxis]);
         let dy = dy.slice_move(s![.., .., NewAxis]);
-        let l = tl * (dx.clone() * -1. + 1.) + bl * &dx;
-        let r = tr * (dx.clone() * -1. + 1.) + br * &dx;
+        let l = tl * (&dx * -1. + 1.) + bl * &dx;
+        let r = tr * (&dx * -1. + 1.) + br * &dx;
 
-        l * (dy.clone() * -1. + 1.) + r * dy
+        l * (&dy * -1. + 1.) + r * dy
     }
 
     fn floor(a: ArrayView2<f64>) -> (Array2<usize>, Array2<f64>) {
