@@ -3,9 +3,9 @@
 use anyhow::Result;
 use image::codecs::gif::*;
 use image::{Frame, RgbaImage};
+use indicatif::ProgressBar;
 use itertools::Itertools;
 use ndarray::{iter::IterMut, *};
-use pbr::ProgressBar;
 use serde_derive::Deserialize;
 use sprs::*;
 use sprs_ldl::LdlNumeric;
@@ -24,10 +24,8 @@ struct Fluid {
 
 impl Fluid {
     pub fn new(height: usize, width: usize, viscosity: f64) -> Self {
-        let diffusion_solver =
-            LdlNumeric::new(Self::build_solver(height, width, 1., -viscosity, -1.).view()).unwrap();
-        let pressure_solver =
-            LdlNumeric::new(Self::build_solver(height, width, 0., 1., 1.).view()).unwrap();
+        let diffusion_solver = Self::build_solver(height, width, 1., -viscosity, -1.);
+        let pressure_solver = Self::build_solver(height, width, 0., 1., 1.);
         Self {
             height,
             width,
@@ -38,7 +36,13 @@ impl Fluid {
         }
     }
 
-    fn build_solver(height: usize, width: usize, r: f64, s: f64, factor: f64) -> CsMat<f64> {
+    fn build_solver(
+        height: usize,
+        width: usize,
+        r: f64,
+        s: f64,
+        factor: f64,
+    ) -> LdlNumeric<f64, usize> {
         let cnt = height * width;
         let mut result = CsMat::new_csc((cnt, cnt), vec![0; cnt + 1], vec![], vec![]);
         for i in 0..height {
@@ -64,7 +68,7 @@ impl Fluid {
                 result.insert(curidx, curidx, self_total);
             }
         }
-        result
+        LdlNumeric::new(result.view()).unwrap()
     }
 
     const fn coord(width: usize, i: usize, j: usize) -> usize {
@@ -319,10 +323,10 @@ fn main() -> Result<()> {
     let mut sim = Fluid::new(input.height, input.width, input.viscosity);
 
     let mut frames = vec![];
-    let mut pb = ProgressBar::new(input.time as u64);
+    let pb = ProgressBar::new(input.time as u64);
 
     for step in 0..input.time {
-        pb.inc();
+        pb.inc(1);
         for splat in &input.splats {
             if splat.time_from <= step && splat.time_to > step {
                 sim.splat(&splat.center, splat.radius, &splat.accel, &splat.dyes);
@@ -352,7 +356,7 @@ fn main() -> Result<()> {
         );
         frames.push(frame);
     }
-    pb.finish_println("Done!");
+    pb.finish();
 
     let gif_output = OpenOptions::new()
         .write(true)
