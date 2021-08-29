@@ -1,16 +1,17 @@
 #![feature(core_intrinsics)]
 
 use anyhow::Result;
+use image::codecs::gif::*;
+use image::{Frame, RgbaImage};
+use itertools::Itertools;
 use ndarray::{iter::IterMut, *};
 use pbr::ProgressBar;
 use serde_derive::Deserialize;
 use sprs::*;
 use sprs_ldl::LdlNumeric;
-use std::{
-    fs::{File, OpenOptions},
-    intrinsics::floorf64,
-    ops::AddAssign,
-};
+use std::fs::{File, OpenOptions};
+use std::intrinsics::floorf64;
+use std::ops::AddAssign;
 
 struct Fluid {
     height: usize,
@@ -317,18 +318,7 @@ fn main() -> Result<()> {
     let input: Input = serde_json::from_reader(input)?;
     let mut sim = Fluid::new(input.height, input.width, input.viscosity);
 
-    let mut gif_output = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .open("output.gif")?;
-
-    let mut encoder = gif::Encoder::new(
-        &mut gif_output,
-        input.width as u16,
-        input.height as u16,
-        &[],
-    )?;
-
+    let mut frames = vec![];
     let mut pb = ProgressBar::new(input.time as u64);
 
     for step in 0..input.time {
@@ -341,18 +331,37 @@ fn main() -> Result<()> {
 
         sim.step();
 
-        let frame = gif::Frame::from_rgb_speed(
-            input.width as u16,
-            input.height as u16,
-            &sim.dyes
-                .iter()
-                .map(|s| (s * 255.) as u8)
-                .collect::<Vec<_>>(),
-            10,
+        let frame = Frame::new(
+            RgbaImage::from_raw(
+                input.width as u32,
+                input.height as u32,
+                sim.dyes
+                    .iter()
+                    .chunks(3)
+                    .into_iter()
+                    .map(|mut chunk| {
+                        let r = chunk.next().unwrap();
+                        let g = chunk.next().unwrap();
+                        let b = chunk.next().unwrap();
+                        [(r * 255.) as u8, (g * 255.) as u8, (b * 255.) as u8, 255u8]
+                    })
+                    .flatten()
+                    .collect(),
+            )
+            .ok_or(anyhow::anyhow!(""))?,
         );
-        encoder.write_frame(&frame)?;
+        frames.push(frame);
     }
     pb.finish_println("Done!");
+
+    let gif_output = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open("output.gif")?;
+
+    let mut encoder = GifEncoder::new_with_speed(gif_output, 10);
+    encoder.set_repeat(Repeat::Infinite)?;
+    encoder.encode_frames(frames)?;
 
     let f = hdf5::File::create("output.hdf5")?;
     f.new_dataset_builder()
