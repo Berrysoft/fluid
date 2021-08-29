@@ -348,7 +348,7 @@ fn main() -> Result<()> {
                     .flatten()
                     .collect(),
             )
-            .ok_or(anyhow::anyhow!(""))?,
+            .unwrap(),
         );
         frames.push(frame);
     }
