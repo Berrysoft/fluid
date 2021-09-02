@@ -3,9 +3,9 @@
 use anyhow::Result;
 use image::codecs::gif::*;
 use image::{Delay, Frame, RgbaImage};
-use pbr::ProgressBar;
 use itertools::Itertools;
 use ndarray::{iter::IterMut, *};
+use pbr::ProgressBar;
 use serde_derive::Deserialize;
 use sprs::*;
 use sprs_ldl::LdlNumeric;
@@ -125,7 +125,7 @@ impl Fluid {
                 &self
                     .diffusion_solver
                     .solve(&Array1::from_iter(
-                        advected_velocity.slice(s![.., .., dim]).to_owned(),
+                        advected_velocity.slice(s![.., .., dim]).map(|a| *a),
                     ))
                     .into_shape((self.height, self.width))
                     .unwrap(),
