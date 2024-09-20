@@ -1,4 +1,4 @@
-#![feature(core_intrinsics)]
+#![allow(clippy::reversed_empty_ranges)]
 
 use anyhow::Result;
 use image::codecs::gif::*;
@@ -10,7 +10,6 @@ use serde_derive::Deserialize;
 use sprs::*;
 use sprs_ldl::LdlNumeric;
 use std::fs::{File, OpenOptions};
-use std::intrinsics::floorf64;
 use std::ops::AddAssign;
 
 struct Fluid {
@@ -127,7 +126,7 @@ impl Fluid {
                     .solve(&Array1::from_iter(
                         advected_velocity.slice(s![.., .., dim]).map(|a| *a),
                     ))
-                    .into_shape((self.height, self.width))
+                    .to_shape((self.height, self.width))
                     .unwrap(),
             );
         }
@@ -137,7 +136,7 @@ impl Fluid {
         let mut q = self
             .pressure_solver
             .solve(&Array1::from_iter(div))
-            .into_shape((self.height, self.width))
+            .into_shape_with_order((self.height, self.width))
             .unwrap();
         self.copy_to_boundary2(&mut q, 1.);
         let g = self.grad(&q);
@@ -215,7 +214,7 @@ impl Fluid {
         let mut rf = Array2::zeros((shape[0], shape[1]));
         for i in 0..shape[0] {
             for j in 0..shape[1] {
-                rf[[i, j]] = unsafe { floorf64(a[[i, j]]) };
+                rf[[i, j]] = a[[i, j]].floor();
                 ru[[i, j]] = rf[[i, j]] as usize;
             }
         }
@@ -344,13 +343,12 @@ fn main() -> Result<()> {
                     .iter()
                     .chunks(3)
                     .into_iter()
-                    .map(|mut chunk| {
+                    .flat_map(|mut chunk| {
                         let r = chunk.next().unwrap();
                         let g = chunk.next().unwrap();
                         let b = chunk.next().unwrap();
                         [(r * 255.) as u8, (g * 255.) as u8, (b * 255.) as u8, 255u8]
                     })
-                    .flatten()
                     .collect(),
             )
             .unwrap(),
@@ -365,6 +363,7 @@ fn main() -> Result<()> {
     let gif_output = OpenOptions::new()
         .write(true)
         .create(true)
+        .truncate(true)
         .open("output.gif")?;
 
     let mut encoder = GifEncoder::new_with_speed(gif_output, 10);
